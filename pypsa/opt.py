@@ -86,7 +86,7 @@ class LExpression(object):
         return self.__mul__(constant)
 
     def __add__(self,other):
-        if type(other) is LExpression:
+        if isinstance(other, LExpression):
             return LExpression(self.variables + other.variables,self.constant+other.constant)
         else:
             try:
@@ -99,6 +99,13 @@ class LExpression(object):
 
     def __radd__(self,other):
         return self.__add__(other)
+
+    def __sub__(self,other):
+        if isinstance(other, LExpression):
+            return LExpression(self.variables + [(-c,v) for c,v in other.variables],
+                               self.constant - other.constant)
+        else:
+            raise NotImplemented
 
     def __pos__(self):
         return self
@@ -122,7 +129,6 @@ class LConstraint(object):
     """
 
     def __init__(self,lhs=None,sense="==",rhs=None):
-
         if lhs is None:
             self.lhs = LExpression()
         else:
@@ -138,6 +144,25 @@ class LConstraint(object):
     def __repr__(self):
         return "{} {} {}".format(self.lhs, self.sense, self.rhs)
 
+
+def to_pyomo_expr(expr, separate_constant=False):
+    if isinstance(expr, LExpression):
+        variables = expr.variables
+        constant = expr.constant
+
+        pe = pyomo.core.base.expr._SumExpression()
+        pe._args = [v for _,v in variables]
+        pe._coef = [c for c,_ in variables]
+        if separate_constant:
+            return pe, - constant
+        else:
+            pe._const = constant
+            return pe
+    else:
+        if separate_constant:
+            return expr, 0.
+        else:
+            return expr
 
 def l_constraint(model,name,constraints,*args):
     """A replacement for pyomo's Constraint that quickly builds linear
@@ -184,20 +209,15 @@ def l_constraint(model,name,constraints,*args):
     v = getattr(model,name)
     for i in v._index:
         c = constraints[i]
-        if type(c) is LConstraint:
-            variables = c.lhs.variables + [(-item[0],item[1]) for item in c.rhs.variables]
+        if isinstance(c, LConstraint):
+            expr = c.lhs - c.rhs
             sense = c.sense
-            constant = c.rhs.constant - c.lhs.constant
         else:
-            variables = c[0]
-            sense = c[1]
-            constant = c[2]
+            variables, sense, constant = c
+            expr = LExpression(variables, -constant)
 
         v._data[i] = pyomo.core.base.constraint._GeneralConstraintData(None,v)
-        v._data[i]._body = pyomo.core.base.expr_coopr3._SumExpression()
-        v._data[i]._body._args = [item[1] for item in variables]
-        v._data[i]._body._coef = [item[0] for item in variables]
-        v._data[i]._body._const = 0.
+        v._data[i]._body, constant = to_pyomo_expr(expr, separate_constant=True)
         if sense == "==":
             v._data[i]._equality = True
             v._data[i]._lower = pyomo.core.base.numvalue.NumericConstant(constant)
