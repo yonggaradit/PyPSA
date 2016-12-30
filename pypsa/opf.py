@@ -567,7 +567,7 @@ def define_passive_branch_flows_with_cycles(network,snapshots,flows):
                 lhs = LExpression([(branches.at[(bt,bn),attribute]*
                                     (branches.at[(bt,bn),"tap_ratio"] if bt == "Transformer" else 1.)*sn.C[i,j],
                                     flows[bt,bn,snapshot])
-                                   for i, (bt, bn) in enumerate(branches.index[cycle_is])])
+                                   for i, (bt, bn) in zip(cycle_is, branches.index[cycle_is])])
                 cycle_constraints[sn.name,j,snapshot] = LConstraint(lhs,"==",LExpression())
 
     l_constraint(network.model, "cycle_constraints", cycle_constraints,
@@ -601,7 +601,7 @@ def define_passive_branch_flows_with_kirchhoff(network,snapshots,flows):
                 lhs = LExpression([(branches.at[(bt,bn),attribute]*
                                     (branches.at[(bt,bn),"tap_ratio"] if bt == "Transformer" else 1.)*sn.C[i,j],
                                     flows[bt, bn, snapshot])
-                                   for i, (bt, bn) in enumerate(branches.index[cycle_is])])
+                                   for i, (bt, bn) in zip(cycle_is, branches.index[cycle_is])])
                 cycle_constraints[sn.name,j,snapshot] = LConstraint(lhs,"==",LExpression())
 
     l_constraint(network.model, "cycle_constraints", cycle_constraints,
